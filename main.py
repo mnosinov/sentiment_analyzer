@@ -5,12 +5,15 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
 
+
 app = FastAPI()
+
 
 def get_db_cursor_and_connection():
     conn = sqlite3.connect('reviews.db')
     cursor = conn.cursor()
     return cursor, conn
+
 
 # Создание таблицы reviews в случае если она не была создана
 def init_db():
@@ -26,10 +29,13 @@ def init_db():
     conn.commit()
     conn.close()
 
+
 init_db()
+
 
 class ReviewRequest(BaseModel):
     text: str
+
 
 # Модель ответа
 class ReviewResponse(BaseModel):
@@ -42,7 +48,7 @@ class ReviewResponse(BaseModel):
 # сохранение отзыва
 @app.post("/reviews", response_model=ReviewResponse)
 def create_review(review: ReviewRequest):
-    sentiment = analyze_sentiment(review.text)
+    sentiment = simple_analyze_sentiment(review.text)
     created_at = datetime.utcnow().isoformat()
 
     cursor, conn = get_db_cursor_and_connection()
@@ -66,11 +72,60 @@ def create_review(review: ReviewRequest):
     return ReviewResponse(id=result[0], text=result[1], sentiment=result[2], created_at=result[3])
 
 
-# Функция анализа тональности
-def analyze_sentiment(text: str) -> str:
-    # TODO
-    return 'positive'
-    return 'negative'
+# получение отзывов с оценкой
+@app.get("/reviews", response_model=List[ReviewResponse])
+def get_reviews(sentiment: str = None):
+    cursor, conn = get_db_cursor_and_connection()
+
+    query_str = "SELECT id, text, sentiment, created_at FROM reviews "
+    if sentiment:
+        query_str += "WHERE sentiment = ?"
+        cursor.execute(query_str, (sentiment,))
+    else:
+        cursor.execute(query_str)
+
+    reviews = cursor.fetchall()
+    conn.close()
+
+    return [
+        ReviewResponse(
+            id=row[0],
+            text=row[1],
+            sentiment=row[2],
+            created_at=row[3]
+        )
+        for row in reviews
+    ]
+
+
+# Адаптация анализа тональности
+def simple_analyze_sentiment(text: str) -> str:
+    positive_weight, negative_weight = analyze_sentiment(text)
+    if positive_weight:
+        return 'positive'
+    if negative_weight:
+        return 'negative'
     return 'neutral'
 
 
+# Функция анализа тональности
+def analyze_sentiment(text: str) -> str:
+    """
+      Функция анализа тональности. Производит подсчет вхождений позитивных и негативных слов из словарей.
+    :param text: текст для анализа
+    :return: tuple(количество позитивных слов, количество негативных слов)
+    """
+    text_lower = text.lower()
+
+    POSITIVE_TERMS = ("хорош", "люблю")
+    NEGATIVE_TERMS = ("плохо", "ненавижу")
+
+    positive_weight = 0
+    negative_weight = 0
+
+    for word in text_lower.split():
+        if word in POSITIVE_TERMS:
+            positive_weight += 1
+        if word in NEGATIVE_TERMS:
+            negative_weight += 1
+    return positive_weight, negative_weight
