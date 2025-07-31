@@ -3,7 +3,7 @@ import re
 
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List
 
 
@@ -35,7 +35,7 @@ init_db()
 
 
 class ReviewRequest(BaseModel):
-    text: str
+    text: str = Field(..., min_lenght=1, description="Текст отзыва не может быть пустым")
 
 
 # Модель ответа
@@ -78,12 +78,13 @@ def create_review(review: ReviewRequest):
 def get_reviews(sentiment: str = None):
     cursor, conn = get_db_cursor_and_connection()
 
-    query_str = "SELECT id, text, sentiment, created_at FROM reviews "
     if sentiment:
-        query_str += "WHERE sentiment = ?"
-        cursor.execute(query_str, (sentiment,))
+        cursor.execute(
+            "SELECT id, text, sentiment, created_at FROM reviews WHERE sentiment = ?",
+            (sentiment,)
+        )
     else:
-        cursor.execute(query_str)
+        cursor.execute("SELECT id, text, sentiment, created_at FROM reviews")
 
     reviews = cursor.fetchall()
     conn.close()
