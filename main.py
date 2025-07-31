@@ -1,4 +1,5 @@
 import sqlite3
+import re
 
 from datetime import datetime
 from fastapi import FastAPI, HTTPException
@@ -108,6 +109,10 @@ def simple_analyze_sentiment(text: str) -> str:
     return 'neutral'
 
 
+POSITIVE_TERMS = ("хорош", "люблю")
+NEGATIVE_TERMS = ("плохо", "ненавижу")
+
+
 # Функция анализа тональности
 def analyze_sentiment(text: str) -> str:
     """
@@ -117,15 +122,14 @@ def analyze_sentiment(text: str) -> str:
     """
     text_lower = text.lower()
 
-    POSITIVE_TERMS = ("хорош", "люблю")
-    NEGATIVE_TERMS = ("плохо", "ненавижу")
 
     positive_weight = 0
     negative_weight = 0
 
-    for word in text_lower.split():
-        if word in POSITIVE_TERMS:
-            positive_weight += 1
-        if word in NEGATIVE_TERMS:
-            negative_weight += 1
+    for word in POSITIVE_TERMS:
+        positive_weight += len(re.findall(word, text_lower))
+
+    for word in NEGATIVE_TERMS:
+        negative_weight += len(re.findall(word, text_lower))
+
     return positive_weight, negative_weight
